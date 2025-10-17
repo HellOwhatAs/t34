@@ -1,4 +1,4 @@
-use crate::game::{idx2pos, pos2idx};
+use crate::game3d::{idx2pos, pos2idx};
 
 const PERMS: [[u8; 3]; 6] = [
     [0, 1, 2],
