@@ -5,7 +5,7 @@ pub mod game3d;
 
 use dashmap::DashMap;
 use game::TTT;
-use game2d::TTT3x3;
+use game2d::{TTT3x3, TTT4x4, TTT5x5};
 use game3d::TTT4x4x4;
 use rayon::prelude::*;
 
@@ -73,57 +73,71 @@ fn test_3x3() {
     println!("{:?} {:?}, {:?}", m, s, d);
 }
 
-fn main() {
-    fn print_state(state: TTT3x3) {
-        for x in 0..3 {
-            for y in 0..3 {
-                let idx = x * 3 + y;
-                let c = if (state.0.0 & (1 << idx)) != 0 {
-                    'X'
-                } else if (state.0.1 & (1 << idx)) != 0 {
-                    'O'
-                } else {
-                    idx.to_string().chars().next().unwrap()
-                };
-                print!("{}", c);
-            }
-            println!();
+fn print_state_2d(state: (u64, u64), n: i32) {
+    let mut grid = vec![];
+    let mut max_width = 0;
+    for x in 0..n {
+        grid.push(vec![]);
+        for y in 0..n {
+            let idx = x * n + y;
+            let c = if (state.0 & (1 << idx)) != 0 {
+                "X".to_owned()
+            } else if (state.1 & (1 << idx)) != 0 {
+                "O".to_owned()
+            } else {
+                idx.to_string()
+            };
+            max_width = max_width.max(c.len());
+            grid.last_mut().unwrap().push(c);
         }
     }
-    fn wait_input() -> u32 {
-        use std::io::{self, Write};
-        loop {
-            print!("Enter your move: ");
-            io::stdout().flush().unwrap();
-            let mut input = String::new();
-            io::stdin().read_line(&mut input).unwrap();
-            if let Ok(num) = input.trim().parse::<u32>() {
-                if num < 9 {
-                    return num;
-                }
-            }
-            println!("Invalid input, please enter a number between 0 and 8.");
-        }
+    for row in grid {
+        let line = row
+            .into_iter()
+            .map(|c| format!("{:>width$}", c, width = max_width))
+            .collect::<Vec<_>>()
+            .join(" | ");
+        println!("{}", line);
+        println!("{}", "-".repeat(line.len()));
     }
-    let cache = DashMap::new();
-    let mut state = TTT3x3((0, 0));
+}
+fn wait_input(max: u32) -> u32 {
+    use std::io::{self, Write};
     loop {
-        print_state(state);
-        let mv = wait_input();
+        print!("Enter your move: ");
+        io::stdout().flush().unwrap();
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).unwrap();
+        if let Ok(num) = input.trim().parse::<u32>() {
+            if num < max {
+                return num;
+            }
+        }
+        println!("Invalid input, please enter a number between 0 and 8.");
+    }
+}
+
+fn main() {
+    let cache = DashMap::new();
+    let mut state = TTT4x4((0, 0));
+    loop {
+        print_state_2d(state.0, 4);
+        let mv = wait_input(16);
         state = state.make_move(false, mv);
         if state.already_win().is_some() {
-            print_state(state);
+            print_state_2d(state.0, 4);
             println!("You win!");
             break;
         }
         let (m, s, d) = minmax(state, &cache);
+        println!("{:?} {:?} {:?}", m, s, d);
         if let Some(m) = m {
             if s > 0 {
                 println!("You'll lose in {} moves.", d);
             }
             state = state.make_move(true, m);
             if state.already_win().is_some() {
-                print_state(state);
+                print_state_2d(state.0, 4);
                 println!("AI wins!");
                 break;
             }
@@ -132,4 +146,17 @@ fn main() {
             break;
         }
     }
+}
+
+#[test]
+fn test_struct_name() {
+    struct Name {}
+    let res = std::any::type_name::<Name>();
+    impl Name {
+        fn get_name(&self) -> &'static str {
+            std::any::type_name::<Self>()
+        }
+    }
+    let res2 = (Name {}).get_name().rfind("m");
+    println!("{:?} {:?}", res, res2);
 }
