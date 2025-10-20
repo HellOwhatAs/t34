@@ -59,4 +59,8 @@ impl TTT for TTT3x3 {
             (0..9).filter(|i| s & (1 << i) == 0).collect::<Vec<_>>(),
         )
     }
+
+    fn canonical_form(&self) -> Self {
+        *self
+    }
 }

@@ -3,13 +3,13 @@ pub mod game;
 pub mod game2d;
 pub mod game3d;
 
+use dashmap::DashMap;
 use game::TTT;
 use game2d::TTT3x3;
-// use game3d::TTT4x4x4;
-use dashmap::DashMap;
+use game3d::TTT4x4x4;
 use rayon::prelude::*;
 
-fn minmax<T>(state: T, cache: &DashMap<T, (Option<u32>, i32, usize)>) -> (Option<u32>, i32, usize)
+fn minmax<T>(state: T, cache: &DashMap<T, (i32, usize)>) -> (Option<u32>, i32, usize)
 where
     T: game::TTT + Eq + core::hash::Hash + std::marker::Sync + std::marker::Send,
 {
@@ -21,20 +21,24 @@ where
         return (None, 0, 0);
     }
 
-    if let Some(cached) = cache.get(&state) {
-        return *cached;
-    }
-
     let mut best_move = None;
     let mut best_score = if player { -1 } else { 1 };
     let mut best_depth = 0;
 
     let results = moves
         .par_iter()
-        .map(|&m| (m, minmax(state.make_move(player, m), cache)))
+        .map(|&m| {
+            let new_state = state.make_move(player, m);
+            if let Some(cached) = cache.get(&new_state.canonical_form()) {
+                (m, *cached)
+            } else {
+                let res = minmax(new_state, cache);
+                (m, (res.1, res.2))
+            }
+        })
         .collect::<Vec<_>>();
 
-    for (m, (_, score, depth)) in results {
+    for (m, (score, depth)) in results {
         // wants max score when player, min score when !player
         // prefer faster win, slower loss
         if (player && (score > best_score) || !player && (score < best_score))
@@ -52,8 +56,21 @@ where
     }
 
     let res = (best_move, best_score, best_depth + 1);
-    cache.insert(state, res);
+    cache.insert(state.canonical_form(), (res.1, res.2));
     res
+}
+
+#[test]
+fn test_3x3() {
+    let cache = DashMap::new();
+    let mut state = TTT3x3((0, 0));
+    state = state.make_move(false, 0);
+    state = state.make_move(true, 2);
+    state = state.make_move(false, 1);
+    state = state.make_move(true, 4);
+    state = state.make_move(false, 3);
+    let (m, s, d) = minmax(state, &cache);
+    println!("{:?} {:?}, {:?}", m, s, d);
 }
 
 fn main() {
@@ -100,13 +117,18 @@ fn main() {
             break;
         }
         let (m, s, d) = minmax(state, &cache);
-        if s > 0 {
-            println!("You'll lose in {} moves.", d);
-        }
-        state = state.make_move(true, m.unwrap());
-        if state.already_win().is_some() {
-            print_state(state);
-            println!("AI wins!");
+        if let Some(m) = m {
+            if s > 0 {
+                println!("You'll lose in {} moves.", d);
+            }
+            state = state.make_move(true, m);
+            if state.already_win().is_some() {
+                print_state(state);
+                println!("AI wins!");
+                break;
+            }
+        } else {
+            println!("It's a draw!");
             break;
         }
     }

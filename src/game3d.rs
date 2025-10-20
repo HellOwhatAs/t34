@@ -1,5 +1,5 @@
+use crate::canonical::min_canonicals;
 use crate::game::TTT;
-
 /// 3D 4x4x4 Tic Tac Toe game state represented as two bitboards.
 /// The first u64 is the bitboard for player 0 (X), the second for player 1 (O).
 /// A position is occupied if the corresponding bit is set in either player's bitboard.
@@ -51,6 +51,10 @@ impl TTT for TTT4x4x4 {
                 .filter(|i| s & (1 << i) == 0)
                 .collect::<Vec<_>>(),
         )
+    }
+
+    fn canonical_form(&self) -> Self {
+        Self(min_canonicals(self.0))
     }
 }
 
