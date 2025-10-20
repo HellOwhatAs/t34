@@ -5,14 +5,23 @@ pub mod game3d;
 
 use dashmap::DashMap;
 use game::TTT;
-use game2d::{TTT3x3, TTT4x4, TTT5x5};
+#[allow(unused_imports)]
+use game2d::{TTT3x3, TTT4x4, TTT5x5, TTT5x5_3, TTT10x10_5};
+#[allow(unused_imports)]
 use game3d::TTT4x4x4;
 use rayon::prelude::*;
 
-fn minmax<T>(state: T, cache: &DashMap<T, (i32, usize)>) -> (Option<u32>, i32, usize)
+fn minmax<T>(
+    state: T,
+    max_depth: usize,
+    cache: &DashMap<T, (usize, (i32, usize))>,
+) -> (Option<u32>, i32, usize)
 where
     T: game::TTT + Eq + core::hash::Hash + std::marker::Sync + std::marker::Send,
 {
+    if max_depth == 0 {
+        return (None, 0, 0);
+    }
     if let Some(winner) = state.already_win() {
         return if winner { (None, 1, 0) } else { (None, -1, 0) };
     }
@@ -30,11 +39,13 @@ where
         .map(|&m| {
             let new_state = state.make_move(player, m);
             if let Some(cached) = cache.get(&new_state.canonical_form()) {
-                (m, *cached)
-            } else {
-                let res = minmax(new_state, cache);
-                (m, (res.1, res.2))
+                let (cached_max_depth, cached) = *cached;
+                if cached_max_depth >= max_depth - 1 {
+                    return (m, cached);
+                }
             }
+            let res = minmax(new_state, max_depth - 1, cache);
+            return (m, (res.1, res.2));
         })
         .collect::<Vec<_>>();
 
@@ -56,24 +67,24 @@ where
     }
 
     let res = (best_move, best_score, best_depth + 1);
-    cache.insert(state.canonical_form(), (res.1, res.2));
+    cache.insert(state.canonical_form(), (max_depth, (res.1, res.2)));
     res
 }
 
 #[test]
 fn test_3x3() {
     let cache = DashMap::new();
-    let mut state = TTT3x3((0, 0));
+    let mut state = TTT5x5((0, 0));
     state = state.make_move(false, 0);
     state = state.make_move(true, 2);
     state = state.make_move(false, 1);
     state = state.make_move(true, 4);
     state = state.make_move(false, 3);
-    let (m, s, d) = minmax(state, &cache);
+    let (m, s, d) = minmax(state, 8, &cache);
     println!("{:?} {:?}, {:?}", m, s, d);
 }
 
-fn print_state_2d(state: (u64, u64), n: i32) {
+fn print_state_2d(state: (u128, u128), n: i32) {
     let mut grid = vec![];
     let mut max_width = 0;
     for x in 0..n {
@@ -119,17 +130,18 @@ fn wait_input(max: u32) -> u32 {
 
 fn main() {
     let cache = DashMap::new();
-    let mut state = TTT4x4((0, 0));
+    let mut state = TTT10x10_5((0, 0));
+    let n = 10;
     loop {
-        print_state_2d(state.0, 4);
-        let mv = wait_input(16);
+        print_state_2d(state.0, n);
+        let mv = wait_input((n * n) as u32);
         state = state.make_move(false, mv);
         if state.already_win().is_some() {
-            print_state_2d(state.0, 4);
+            print_state_2d(state.0, n);
             println!("You win!");
             break;
         }
-        let (m, s, d) = minmax(state, &cache);
+        let (m, s, d) = minmax(state, 6, &cache);
         println!("{:?} {:?} {:?}", m, s, d);
         if let Some(m) = m {
             if s > 0 {
@@ -137,8 +149,8 @@ fn main() {
             }
             state = state.make_move(true, m);
             if state.already_win().is_some() {
-                print_state_2d(state.0, 4);
-                println!("AI wins!");
+                print_state_2d(state.0, n);
+                println!("Computer win!");
                 break;
             }
         } else {
