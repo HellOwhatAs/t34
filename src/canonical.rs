@@ -9,17 +9,12 @@ const PERMS: [[u8; 3]; 6] = [
     [2, 1, 0],
 ];
 
-pub fn min_canonicals(state: (u64, u64)) -> (u64, u64) {
-    let mut res = state;
-    for perm in PERMS {
-        for flips in 0u8..8u8 {
-            let s = apply_transform_pair(state, perm, flips);
-            if s < res {
-                res = s;
-            }
-        }
-    }
-    res
+pub fn iter_canonicals(state: (u64, u64)) -> impl Iterator<Item = (u64, u64)> {
+    PERMS.iter().flat_map(move |&perm| {
+        (0..8u8)
+            .into_iter()
+            .map(move |flips| apply_transform_pair(state, perm, flips))
+    })
 }
 
 #[inline]
@@ -59,21 +54,9 @@ const fn map_axis(v: u32, flip: bool) -> u32 {
     if flip { 3 - v } else { v }
 }
 
-#[cfg(test)]
-fn __all_canonicals(state: (u64, u64)) -> std::collections::HashSet<(u64, u64)> {
-    let mut uniq = std::collections::HashSet::with_capacity(48);
-    for perm in PERMS {
-        for flips in 0u8..8u8 {
-            let s = apply_transform_pair(state, perm, flips);
-            uniq.insert(s);
-        }
-    }
-    uniq
-}
-
 #[test]
 fn empty_board_single() {
-    let res = __all_canonicals((0, 0));
+    let res: std::collections::HashSet<(u64, u64)> = iter_canonicals((0, 0)).collect();
     assert_eq!(res.len(), 1);
     assert!(res.contains(&(0, 0)), "Empty board missing from canonicals");
 }
@@ -83,7 +66,7 @@ fn identity_present_and_counts_preserved() {
     let x = 1u64 << pos2idx(1, 2, 3);
     let o = 1u64 << pos2idx(0, 0, 0);
     let s = (x, o);
-    let res = __all_canonicals(s);
+    let res: std::collections::HashSet<(u64, u64)> = iter_canonicals(s).collect();
     assert!(res.contains(&s), "Original state missing from canonicals");
     for (a, b) in &res {
         assert_eq!(a.count_ones(), 1);
@@ -99,13 +82,13 @@ fn test_min_canonical() {
         (1u64 << pos2idx(1, 2, 3)) | (1u64 << pos2idx(0, 0, 0)),
         (1u64 << pos2idx(3, 3, 3)) | (1u64 << pos2idx(0, 0, 1)),
     );
-    let res1 = __all_canonicals(s1);
+    let res1: std::collections::HashSet<(u64, u64)> = iter_canonicals(s1).collect();
 
     let s2 = (
         (1u64 << pos2idx(1, 1, 0)) | (1u64 << pos2idx(3, 0, 3)),
         (1u64 << pos2idx(0, 3, 0)) | (1u64 << pos2idx(3, 0, 2)),
     );
-    let res2 = __all_canonicals(s2);
+    let res2: std::collections::HashSet<(u64, u64)> = iter_canonicals(s2).collect();
 
     assert_eq!(res1, res2, "Canonicals sets do not match");
 }
